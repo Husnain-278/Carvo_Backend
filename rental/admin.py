@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import Car, CarImage, Rental, Payment
+from api.emails import  send_rental_cancellation_email, send_rental_completed_email
 
 
 # Inline for Car Images
@@ -12,9 +13,6 @@ class CarImageInline(admin.TabularInline):
 @admin.register(Car)
 class CarAdmin(admin.ModelAdmin):
     list_display = ('name', 'brand', 'model_year', 'car_type', 'price_per_day', 'is_available')
-    list_filter = ('brand', 'car_type', 'transmission', 'fuel_type', 'is_available')
-    search_fields = ('name', 'brand')
-    list_editable = ('is_available',)
     
     fieldsets = (
         ('Basic Information', {
@@ -38,8 +36,6 @@ CarAdmin.search_fields = ['name', 'brand']
 @admin.register(Rental)
 class RentalAdmin(admin.ModelAdmin):
     list_display = ('user', 'car', 'start_date', 'end_date', 'total_price', 'status', 'created_at')
-    list_filter = ('status', 'start_date', 'end_date')
-    search_fields = ('user__username', 'car__name', 'car__brand')
     readonly_fields = ('created_at',)
     list_select_related = ('user', 'car')
     autocomplete_fields = ('user', 'car')
@@ -56,16 +52,29 @@ class RentalAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def save_model(self, request, obj, form, change):
+        if change:
+            old_status = Rental.objects.get(pk = obj.pk).status
+        else:
+            old_status = None
+        super().save_model(request, obj, form, change)
+        if change and old_status != obj.status:
+            if obj.status == 'completed':
+                send_rental_completed_email(obj)
+            elif obj.status == 'cancelled':
+                send_rental_cancellation_email(obj)
+            else:
+                pass
+
 
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ('rental', 'amount', 'payment_method', 'is_paid', 'paid_at')
-    list_filter = ('is_paid', 'payment_method', 'paid_at')
-    search_fields = ('rental__user__username', 'rental__car__name')
     readonly_fields = ('paid_at',)
     list_select_related = ('rental', 'rental__user', 'rental__car')
-    autocomplete_fields = ('rental',)
+   
     
     fieldsets = (
         ('Payment Information', {
