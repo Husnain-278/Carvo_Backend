@@ -2,7 +2,11 @@ from django.contrib import admin
 from .models import Car, CarImage, Rental, Payment
 from api.emails import  send_rental_cancellation_email, send_rental_completed_email
 
+from .models import CustomUser
 
+@admin.register(CustomUser)
+class CustomUserAdmin(admin.ModelAdmin):
+    search_fields = ['username', 'email']
 # Inline for Car Images
 class CarImageInline(admin.TabularInline):
     model = CarImage
@@ -22,7 +26,7 @@ class CarAdmin(admin.ModelAdmin):
             'fields': ('car_type', 'transmission', 'fuel_type', 'seats')
         }),
         ('Pricing & Availability', {
-            'fields': ('price_per_day', 'is_available')
+            'fields': ('price_per_day', 'is_available', 'slug')
         }),
     )
     

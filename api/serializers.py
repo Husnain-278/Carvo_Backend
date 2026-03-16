@@ -1,12 +1,58 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rental.models import Rental, Car, CarImage, Payment
-
+from django.contrib.auth import get_user_model
+import re
 #User Serializers
 
-class CustomTokenObtailPairSerializer(TokenObtainPairSerializer):
+User = get_user_model()
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+    
+    def validate_password(self, value):
+        """
+        Validate password strength:
+        - Minimum 8 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one digit
+        - At least one special character
+        """
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError("Password must contain at least one lowercase letter.")
+        
+     
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', value):
+            raise serializers.ValidationError("Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>).")
+        
+        return value
+    
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+            is_active=False
+        )
+        return user
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
+        if not self.user.is_active:
+            raise AuthenticationFailed("Account is not activated. Please check your email for the activation link.")
         data['username'] = self.user.username
         data['email'] = self.user.email
         return data
@@ -23,12 +69,42 @@ class CustomTokenObtailPairSerializer(TokenObtainPairSerializer):
 
 
 class CarImageSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = CarImage
         fields = ['id', 'image']
 
+    def get_image(self, obj):
+        if obj.image:
+            return obj.image.url
+        return None
 
-class CarSerializer(serializers.ModelSerializer):
+class CarListSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Car
+        fields = [
+            'id',
+            'name',
+            'slug',
+            'brand',
+            'model_year',
+            'car_type',
+            'seats',
+            'price_per_day',
+            'is_available',
+            'image'
+        ]
+
+    def get_image(self, obj):
+        images = obj.images.all()   # uses prefetched data
+        if images:
+            return images[0].image.url
+        return None
+        
+class CarDetailSerializer(serializers.ModelSerializer):
     images = CarImageSerializer(many=True, read_only=True)
     
     class Meta:
@@ -36,7 +112,7 @@ class CarSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'brand', 'model_year', 'car_type',
             'transmission', 'fuel_type', 'seats', 'price_per_day',
-            'is_available', 'created_at', 'images'
+            'is_available', 'created_at', 'description', 'images'
         ]
         #TODO use prefetch_related in view
 
@@ -44,7 +120,7 @@ class CarSerializer(serializers.ModelSerializer):
 
 
 class RentalSerializer(serializers.ModelSerializer):
-    car = CarSerializer(read_only=True)
+    car = CarListSerializer(read_only=True)
     car_id = serializers.PrimaryKeyRelatedField(
         queryset=Car.objects.all(),
         source='car',
@@ -107,10 +183,11 @@ class PaymentSerializer(serializers.ModelSerializer):
             "rental_id",
             "amount",
             "payment_method",
+            "paypal_payment_id",
             "is_paid",
             "paid_at",
         ]
-        read_only_fields = ["amount", "is_paid", "paid_at"]
+        read_only_fields = ["amount", "paypal_payment_id", "is_paid", "paid_at"]
 
     def validate(self, data):
         rental = data["rental"]
@@ -126,17 +203,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        from django.utils import timezone
-        
         rental = validated_data['rental']
         validated_data['amount'] = rental.total_price
-        
-        # Cash payments are unpaid initially (pay on pickup/delivery)
-        if validated_data['payment_method'] == 'cash':
-            validated_data['is_paid'] = False
-            validated_data['paid_at'] = None  # Will be set when actually paid
-        else:
-            # PayPal or other methods - not implemented yet
-            raise serializers.ValidationError("Only cash payment is supported currently")
-        
+        validated_data['is_paid'] = False
+        validated_data['paid_at'] = None
         return super().create(validated_data)

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 from dotenv import load_dotenv
 import os
 
@@ -47,16 +48,32 @@ INSTALLED_APPS = [
     'rest_framework',
     "sendgrid_backend",
     'django_celery_results',
+    "corsheaders",
+    "debug_toolbar",
+    "payments",
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
+
+
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173"
 ]
 
 ROOT_URLCONF = 'Carvo.urls'
@@ -78,7 +95,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Carvo.wsgi.application'
 
-
+AUTH_USER_MODEL = 'accounts.CustomUser'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
@@ -105,6 +122,13 @@ REST_FRAMEWORK = {
     
 }
 
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+}
+
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.MD5PasswordHasher'
+]
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -130,7 +154,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Karachi'
 
 USE_I18N = True
 
@@ -144,8 +168,7 @@ STATIC_URL = 'static/'
 
 # Cloudinary Configuration
 import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+
 
 cloudinary.config(
     cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -173,6 +196,11 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False
 SENDGRID_SANDBOX_MODE_IN_TEST = False
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+ACTIVATION_TOKEN_MAX_AGE = int(os.getenv("ACTIVATION_TOKEN_MAX_AGE", 60 * 60 * 24))
+
+
+
 
 
 
@@ -193,3 +221,8 @@ CACHES = {
         }
     }
 }
+
+
+PAYPAL_MODE = "sandbox"
+PAYPAL_CLIENT_ID = "AX74K8o8v_6fO0Ny07-c1MEVp0F4TVG39132n2HYIzYf4pij8DWxK_cIh6WyVUR2RC_HjQDUzcs-Enz6"
+PAYPAL_CLIENT_SECRET = "EMPi2VzwHXopKK89PK2-aoFGue3rkhLVRq9sm7RR_NAzL_Sok96bXLjMlXRe8YjCFJ58Mpx26CTcHZS2"

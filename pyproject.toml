@@ -19,6 +19,9 @@ dependencies = [
     "redis>=7.1.0",
     "django-celery-results>=2.6.0",
     "django-redis>=6.0.0",
+    "django-cors-headers>=4.9.0",
+    "django-debug-toolbar>=6.2.0",
+    "paypalrestsdk>=1.13.3",
 ]
 
 [dependency-groups]

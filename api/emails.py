@@ -1,7 +1,59 @@
+from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
 from celery import shared_task
 from rental.models import Rental
+from django.contrib.auth import get_user_model
+
+
+ACTIVATION_SALT = "account-activation"
+
+
+def generate_activation_token(user_id: int) -> str:
+    """Create a signed token for account activation."""
+    return signing.dumps({"user_id": user_id}, salt=ACTIVATION_SALT)
+
+
+def verify_activation_token(token: str) -> int:
+    """Validate the activation token and return the user id."""
+    data = signing.loads(
+        token,
+        max_age=int(getattr(settings, "ACTIVATION_TOKEN_MAX_AGE", 86400)),
+        salt=ACTIVATION_SALT,
+    )
+    return data.get("user_id")
+
+
+@shared_task
+def send_activate_account_email(user_id: int):
+    """Send activation link to the new user's email."""
+    User = get_user_model()
+    user = User.objects.get(id=user_id)
+    token = generate_activation_token(user.id)
+    activation_link = f"{settings.FRONTEND_URL}/activate?token={token}"
+
+    subject = "Activate your Carvo account"
+    message = f"""
+Hi {user.username},
+
+Welcome to Carvo! Please activate your account to start booking cars.
+
+Activate your account:
+{activation_link}
+
+This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.
+
+Thanks,
+The Carvo Team
+"""
+    send_mail(
+        subject,
+        message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
 
 @shared_task
 def send_rental_email(rental_id):

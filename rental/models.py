@@ -1,6 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import User
+from accounts.models import CustomUser
 from cloudinary.models import CloudinaryField
+from django.utils.text import slugify
+from uuid import uuid4
 # Create your models here.
 
 
@@ -13,17 +15,20 @@ class Car(models.Model):
     transmission = models.CharField(max_length=20) 
     fuel_type = models.CharField(max_length=20) 
     seats = models.PositiveSmallIntegerField()
-
+    description = models.TextField(blank=True, null=True)
     price_per_day = models.DecimalField(max_digits=8, decimal_places=2)
     is_available = models.BooleanField(default=True)
-
+    slug = models.SlugField(blank=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.brand} {self.name} ({self.model_year})"
 
-
-
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(f'{self.name}-{self.brand}-{uuid4().hex[:4]}')
+        super().save(*args, **kwargs)
+           
 
 class CarImage(models.Model):
     car = models.ForeignKey(Car, on_delete=models.CASCADE, related_name="images")
@@ -40,7 +45,7 @@ class Rental(models.Model):
         ("cancelled", "Cancelled"),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rentals")
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="rentals")
     car = models.ForeignKey(Car, on_delete=models.CASCADE, related_name="rentals")
 
     start_date = models.DateField()
@@ -67,6 +72,7 @@ class Payment(models.Model):
              ("cash", "Cash"),
              ]
           )
+    paypal_payment_id = models.CharField(max_length=100, null=True, blank=True)
     is_paid = models.BooleanField(default=False)
     paid_at = models.DateTimeField(null=True, blank=True)
 
