@@ -107,9 +107,6 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
     }
 }
 
@@ -183,18 +180,21 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
-EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-EMAIL_HOST = "smtp.sendgrid.net"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+#Email configurations
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
 
-EMAIL_HOST_USER = "apikey"
-EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS") == "True"
 
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
-SENDGRID_SANDBOX_MODE_IN_DEBUG = False
-SENDGRID_SANDBOX_MODE_IN_TEST = False
+
+
+
+
+
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 ACTIVATION_TOKEN_MAX_AGE = int(os.getenv("ACTIVATION_TOKEN_MAX_AGE", 60 * 60 * 24))

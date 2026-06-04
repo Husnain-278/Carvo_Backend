@@ -77,6 +77,20 @@ def send_rental_email(rental_id):
         payment_status = "✅ PAYMENT CONFIRMED"
         payment_note = f"Payment of ${rental.total_price} has been processed successfully."
     
+    pickup_branch = rental.pickup_branch
+    dropoff_branch = rental.dropoff_branch
+    pickup_location = (
+        f"{pickup_branch.name}, {pickup_branch.city} - {pickup_branch.address}"
+        if pickup_branch
+        else "TBD"
+    )
+    dropoff_location = (
+        f"{dropoff_branch.name}, {dropoff_branch.city} - {dropoff_branch.address}"
+        if dropoff_branch
+        else "TBD"
+    )
+    fuel_included = "Yes" if rental.fuel == "included" else "No"
+
     message = f"""
 Hi {rental.user.username},
 
@@ -92,10 +106,13 @@ Type: {rental.car.car_type}
 Transmission: {rental.car.transmission}
 Seats: {rental.car.seats}
 Fuel Type: {rental.car.fuel_type}
+Fuel Included: {fuel_included}
 
 📅 Rental Period: {days} day{"s" if days > 1 else ""}
-   Pick-up: {rental.start_date.strftime('%B %d, %Y')}
-   Drop-off: {rental.end_date.strftime('%B %d, %Y')}
+    Pick-up: {rental.start_date.strftime('%B %d, %Y')}
+    Drop-off: {rental.end_date.strftime('%B %d, %Y')}
+    Pick-up Location: {pickup_location}
+    Drop-off Location: {dropoff_location}
 
 💰 Total Amount: ${rental.total_price}
    (${rental.car.price_per_day}/day × {days} day{"s" if days > 1 else ""})
@@ -113,7 +130,8 @@ Fuel Type: {rental.car.fuel_type}
 → Car will be fully fueled - please return it the same way
 → Any damages should be reported immediately
 
-📍 Pick-up Location: @Carvo Garage Mars
+📍 Pick-up Location: {pickup_location}
+📍 Drop-off Location: {dropoff_location}
 ⏰ Pick-up Time: 9:00 AM
 
 Need help? Contact us immediately.

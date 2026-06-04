@@ -18,4 +18,8 @@ urlpatterns = [
     path('payment/execute/', views.PaymentExecuteView.as_view()),
     path('register/', views.RegisterView.as_view()),
     path('activate/', ActivateAccountView.as_view()),
+    path('branch-list/',views.BranchListView.as_view()),
+    path('user-profile/', views.UserProfileView.as_view()),
+    path('user/rentals/', views.UserRentalView.as_view()),
+    path('user/rental/', views.UserRentalView.as_view()),
 ]

@@ -1,6 +1,6 @@
 from .serializers import *
 from rental.models import *
-import datetime
+from datetime import datetime
 from django.db.models import Prefetch
 import paypalrestsdk
 from payments.paypal_config import *  # noqa: configures paypalrestsdk on import
@@ -21,7 +21,7 @@ from django.contrib.auth import get_user_model
 
 
 class CarPagination(PageNumberPagination):
-    page_size = 10
+    page_size = 9
     page_size_query_param = 'page_size'
     max_page_size = 100
 
@@ -43,7 +43,20 @@ class CarListView(generics.ListAPIView):
     pagination_class = CarPagination
 
     def get_queryset(self):
-      return Car.objects.prefetch_related('images')
+      queryset = Car.objects.prefetch_related("images").filter(is_available=True)
+      start_date = self.request.query_params.get("start_date") 
+      end_date = self.request.query_params.get("end_date")
+      if start_date and end_date:
+          start_date = datetime.strptime(start_date,"%Y-%m-%d").date()
+          end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+          booked_car_ids = Rental.objects.filter(
+              start_date__lte = end_date,
+              end_date__gte = start_date,
+              status__in = ["pending", "active"]
+          ).values_list("car_id", flat=True)
+          queryset = queryset.exclude(id__in= booked_car_ids)
+          return queryset
+      return queryset
     
 class CarDetailView(generics.RetrieveAPIView):
     serializer_class = CarDetailSerializer
@@ -197,3 +210,32 @@ class ActivateAccountView(APIView):
         user.is_active = True
         user.save(update_fields=['is_active'])
         return Response({"detail": "Account activated successfully. You can now log in."}, status=status.HTTP_200_OK)
+
+
+
+class BranchListView(generics.ListAPIView):
+    queryset = Branch.objects.filter(is_active=True)
+    serializer_class = BranchSerializer
+    
+
+
+class UserProfileView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserProfileSerializer
+
+    def get_object(self):
+        return self.request.user
+    
+
+
+class UserRentalView(generics.ListAPIView):
+    serializer_class = UserRentalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        status_list = ['active', 'completed','cancelled']
+        return Rental.objects.filter(
+            user=self.request.user,
+            status__in = status_list
+        ).select_related('car')
+    

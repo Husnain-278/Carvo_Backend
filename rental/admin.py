@@ -1,8 +1,10 @@
 from django.contrib import admin
-from .models import Car, CarImage, Rental, Payment
+from .models import Car, CarImage, Rental, Payment, Branch
 from api.emails import  send_rental_cancellation_email, send_rental_completed_email
 
 from .models import CustomUser
+
+admin.site.register(Branch)
 
 @admin.register(CustomUser)
 class CustomUserAdmin(admin.ModelAdmin):
@@ -26,7 +28,7 @@ class CarAdmin(admin.ModelAdmin):
             'fields': ('car_type', 'transmission', 'fuel_type', 'seats')
         }),
         ('Pricing & Availability', {
-            'fields': ('price_per_day', 'is_available', 'slug')
+            'fields': ('price_per_day', 'is_available', 'slug','fuel', 'current_branch')
         }),
     )
     
@@ -46,7 +48,7 @@ class RentalAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Rental Details', {
-            'fields': ('user', 'car', 'start_date', 'end_date')
+            'fields': ('user', 'car', 'start_date', 'end_date', 'fuel', 'pickup_branch', 'dropoff_branch')
         }),
         ('Payment & Status', {
             'fields': ('total_price', 'status')

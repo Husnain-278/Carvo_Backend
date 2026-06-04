@@ -1,9 +1,11 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
-from rental.models import Rental, Car, CarImage, Payment
+from rental.models import Rental, Car, CarImage, Payment, Branch
 from django.contrib.auth import get_user_model
 import re
+from rental.tasks import expire_unpaid_rental
+
 #User Serializers
 
 User = get_user_model()
@@ -68,6 +70,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 # Car Serializers
 
 
+
 class CarImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
@@ -103,18 +106,34 @@ class CarListSerializer(serializers.ModelSerializer):
         if images:
             return images[0].image.url
         return None
+    
+
+
+class BranchSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Branch
+        fields = [
+            'id',
+            'city',
+            'address',
+            'is_active'
+        ]
+
+
         
 class CarDetailSerializer(serializers.ModelSerializer):
     images = CarImageSerializer(many=True, read_only=True)
+    current_branch = BranchSerializer()
     
     class Meta:
         model = Car
         fields = [
             'id', 'name', 'brand', 'model_year', 'car_type',
-            'transmission', 'fuel_type', 'seats', 'price_per_day',
-            'is_available', 'created_at', 'description', 'images'
+            'transmission', 'fuel_type','fuel', 'seats', 'price_per_day',
+            'is_available', 'created_at', 'description', 'images','current_branch'
         ]
-        #TODO use prefetch_related in view
+        
 
 
 
@@ -126,14 +145,20 @@ class RentalSerializer(serializers.ModelSerializer):
         source='car',
         write_only=True
     )
+    dropoff_branch_id = serializers.PrimaryKeyRelatedField(
+        queryset= Branch.objects.filter(is_active=True),
+        source='dropoff_branch',
+        write_only=True
+    )
     username = serializers.CharField(source='user.username', read_only=True)
-    
+    pickup_location = serializers.CharField(source='car.current_branch.address', read_only=True)
+    dropoff_location = serializers.CharField(source='dropoff_branch.address', read_only=True)
     class Meta:
         model = Rental
         fields = [
              'id', 'username', 'car', 'car_id',
              'start_date', 'end_date', 'total_price',
-             'status', 'created_at'
+             'status','pickup_location','dropoff_location','dropoff_branch_id', 'created_at'
                 ]
         read_only_fields = ['total_price', 'status', 'created_at']
         
@@ -143,7 +168,6 @@ class RentalSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("End date must be after start date")
         
         car = data['car']
-        
         # Check if car is available
         if not car.is_available:
             raise serializers.ValidationError("This car is not available for rental")
@@ -163,9 +187,15 @@ class RentalSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         car = validated_data['car']
+        validated_data['pickup_branch']=car.current_branch
         days = (validated_data['end_date'] - validated_data['start_date']).days + 1
         validated_data['total_price'] = car.price_per_day * days
-        return super().create(validated_data)
+        rental =  super().create(validated_data)
+        expire_unpaid_rental.apply_async(
+            args=[rental.id],
+            countdown = 40
+        )
+        return rental
 
 
 
@@ -208,3 +238,34 @@ class PaymentSerializer(serializers.ModelSerializer):
         validated_data['is_paid'] = False
         validated_data['paid_at'] = None
         return super().create(validated_data)
+
+
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields =[
+            'id', 
+            'first_name',
+            'last_name',
+            'email',
+            'phone'
+        ]
+        
+
+
+
+class UserRentalSerializer(serializers.ModelSerializer):
+    car_name = serializers.CharField(source='car.name', read_only=True)
+
+    class Meta:
+        model = Rental
+        fields = [
+            'id',
+            'car_name',
+            'start_date',
+            'end_date',
+            'total_price',
+            'status',
+        ]

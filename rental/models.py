@@ -5,9 +5,23 @@ from django.utils.text import slugify
 from uuid import uuid4
 # Create your models here.
 
+class Branch(models.Model):
+    name = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    address = models.TextField()
+    is_active = models.BooleanField(default=True)
+    def __str__(self):
+        return f"{self.name} - {self.city}"
+
+
 
 
 class Car(models.Model):
+    FUEL_CHOICES = (
+        ("included", "Included"),
+        ("excluded", "Ecluded")
+    )
+
     name = models.CharField(max_length=100)
     brand = models.CharField(max_length=50)
     model_year = models.PositiveIntegerField()
@@ -19,6 +33,14 @@ class Car(models.Model):
     price_per_day = models.DecimalField(max_digits=8, decimal_places=2)
     is_available = models.BooleanField(default=True)
     slug = models.SlugField(blank=True, unique=True)
+    fuel = models.CharField(max_length=10, choices=FUEL_CHOICES, default='included')
+    current_branch = models.ForeignKey(
+    Branch,
+    on_delete=models.SET_NULL,
+    null=True,
+    related_name="cars"
+)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -43,6 +65,11 @@ class Rental(models.Model):
         ("active", "Active"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
+        ("expired","Expired")
+    )
+    FUEL_CHOICES = (
+        ("included", "Included"),
+        ("excluded", "Ecluded")
     )
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="rentals")
@@ -50,9 +77,15 @@ class Rental(models.Model):
 
     start_date = models.DateField()
     end_date = models.DateField()
+    
 
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    fuel = models.CharField(max_length=10, choices=FUEL_CHOICES, default='included')
+    pickup_branch= models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, related_name="pickup_rentals")
+    dropoff_branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, related_name="dropoff_rentals")
+    
 
     created_at = models.DateTimeField(auto_now_add=True)
    
