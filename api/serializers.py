@@ -193,7 +193,7 @@ class RentalSerializer(serializers.ModelSerializer):
         rental =  super().create(validated_data)
         expire_unpaid_rental.apply_async(
             args=[rental.id],
-            countdown = 40
+            countdown = 300
         )
         return rental
 
@@ -213,22 +213,28 @@ class PaymentSerializer(serializers.ModelSerializer):
             "rental_id",
             "amount",
             "payment_method",
-            "paypal_payment_id",
+            "stripe_session_id",
             "is_paid",
             "paid_at",
         ]
-        read_only_fields = ["amount", "paypal_payment_id", "is_paid", "paid_at"]
+        read_only_fields = ["amount", "stripe_session_id", "is_paid", "paid_at"]
 
     def validate(self, data):
         rental = data["rental"]
 
         # Ensure user owns the rental
         if rental.user != self.context["request"].user:
-            raise serializers.ValidationError("Not your rental")
-
+            raise serializers.ValidationError("Not your rental.")
+        
+        # Ensure rental is still payable
+        if rental.status != "pending":
+            raise serializers.ValidationError(
+              "Your rental is no longer available for payment."
+            )
         # Prevent duplicate payment
-        if hasattr(rental, "payment"):
-            raise serializers.ValidationError("Payment already exists")
+        payment = getattr(rental, "payment", None)
+        if payment and payment.is_paid:
+            raise serializers.ValidationError("Payment already completed.")
 
         return data
     
@@ -247,10 +253,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields =[
             'id', 
+            'username',
             'first_name',
             'last_name',
             'email',
             'phone'
+        ]
+        read_only_fields=[
+            'username', 'email'
         ]
         
 

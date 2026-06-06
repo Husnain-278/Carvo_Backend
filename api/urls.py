@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenObtainPairView
 )
-from .views import CustomTokenObtainPairView, ActivateAccountView
+from .views import  ActivateAccountView
+from payments.webhooks import stripe_webhook
 
 from . import views
 
@@ -15,11 +16,11 @@ urlpatterns = [
     path('car-detail/<str:slug>/', views.CarDetailView.as_view(), name='list_cars'),
     path('rental/', views.RentalView.as_view()),
     path('payment/', views.PaymentView.as_view()),
-    path('payment/execute/', views.PaymentExecuteView.as_view()),
     path('register/', views.RegisterView.as_view()),
     path('activate/', ActivateAccountView.as_view()),
     path('branch-list/',views.BranchListView.as_view()),
     path('user-profile/', views.UserProfileView.as_view()),
     path('user/rentals/', views.UserRentalView.as_view()),
     path('user/rental/', views.UserRentalView.as_view()),
+    path('stripe/webhook/', stripe_webhook, name='stripe-webhook'),
 ]

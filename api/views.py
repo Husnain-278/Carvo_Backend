@@ -2,8 +2,7 @@ from .serializers import *
 from rental.models import *
 from datetime import datetime
 from django.db.models import Prefetch
-import paypalrestsdk
-from payments.paypal_config import *  # noqa: configures paypalrestsdk on import
+from payments.services import create_checkout_session
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import permissions
@@ -88,88 +87,40 @@ class PaymentView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        payment = serializer.save()
+        
+        rental = serializer.validated_data["rental"]
+        payment = getattr(rental, "payment", None)
 
-        if payment.payment_method == 'paypal':
-            return self._handle_paypal(payment)
-
-        # Cash: mark rental active immediately
+        if payment is None:
+           payment = serializer.save()
+        
+        #Stripe Payment
+        if payment.payment_method == 'stripe':
+            
+            session = create_checkout_session(payment)
+            
+            payment.stripe_session_id = session.id
+            payment.save(update_fields=["stripe_session_id"])
+            return Response(
+                {
+                    "payment_id": payment.id,
+                    "checkout_url": session.url,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        
+        #Cash Pyament
+        payment.is_paid= True
+        payment.save(update_fields=['is_paid'])
+    
         payment.rental.status = 'active'
         payment.rental.save()
         send_rental_email.delay(payment.rental.id)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+        self.get_serializer(payment).data,
+        status=status.HTTP_201_CREATED
+        )
 
-    def _handle_paypal(self, payment):
-        from django.conf import settings
-        paypal_payment = paypalrestsdk.Payment({
-            "intent": "sale",
-            "payer": {"payment_method": "paypal"},
-            "redirect_urls": {
-                "return_url": f"{settings.FRONTEND_URL}/payment/success",
-                "cancel_url":  f"{settings.FRONTEND_URL}/payment/cancel",
-            },
-            "transactions": [{
-                "amount": {
-                    "total": str(payment.amount),
-                    "currency": "USD",
-                },
-                "description": f"Car rental #{payment.rental.id}",
-            }],
-        })
-
-        if paypal_payment.create():
-            payment.paypal_payment_id = paypal_payment.id
-            payment.save(update_fields=['paypal_payment_id'])
-            approval_url = next(
-                link.href for link in paypal_payment.links if link.rel == "approval_url"
-            )
-            return Response({
-                "payment_id": payment.id,
-                "paypal_payment_id": paypal_payment.id,
-                "approval_url": approval_url,
-            }, status=status.HTTP_201_CREATED)
-
-        payment.delete()
-        return Response({"detail": paypal_payment.error}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class PaymentExecuteView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        from django.utils import timezone
-        paypal_payment_id = request.data.get('paypal_payment_id')
-        payer_id = request.data.get('payer_id')
-
-        if not paypal_payment_id or not payer_id:
-            return Response(
-                {"detail": "paypal_payment_id and payer_id are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            payment = Payment.objects.select_related('rental').get(
-                paypal_payment_id=paypal_payment_id,
-                rental__user=request.user,
-            )
-        except Payment.DoesNotExist:
-            return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        if payment.is_paid:
-            return Response({"detail": "Payment already completed."}, status=status.HTTP_400_BAD_REQUEST)
-
-        paypal_payment = paypalrestsdk.Payment.find(paypal_payment_id)
-        if paypal_payment.execute({"payer_id": payer_id}):
-            payment.is_paid = True
-            payment.paid_at = timezone.now()
-            payment.save(update_fields=['is_paid', 'paid_at'])
-            payment.rental.status = 'active'
-            payment.rental.save()
-            send_rental_email.delay(payment.rental.id)
-            return Response({"detail": "Payment completed successfully."}, status=status.HTTP_200_OK)
-
-        return Response({"detail": paypal_payment.error}, status=status.HTTP_400_BAD_REQUEST)
-    
 
 
 class RegisterView(generics.CreateAPIView):
@@ -219,7 +170,7 @@ class BranchListView(generics.ListAPIView):
     
 
 
-class UserProfileView(generics.RetrieveAPIView):
+class UserProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserProfileSerializer
 

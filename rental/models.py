@@ -101,11 +101,15 @@ class Payment(models.Model):
     payment_method = models.CharField(
        max_length=50,
        choices=[
-             ("paypal", "PayPal"),
+             ("stripe", "Stripe"), 
              ("cash", "Cash"),
              ]
           )
-    paypal_payment_id = models.CharField(max_length=100, null=True, blank=True)
+    stripe_session_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
     is_paid = models.BooleanField(default=False)
     paid_at = models.DateTimeField(null=True, blank=True)
 
