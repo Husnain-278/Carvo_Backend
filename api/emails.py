@@ -1,10 +1,9 @@
 from django.core import signing
-from django.core.mail import send_mail
 from django.conf import settings
 from celery import shared_task
 from rental.models import Rental
 from django.contrib.auth import get_user_model
-
+from .email_serivce import send_email
 
 ACTIVATION_SALT = "account-activation"
 
@@ -46,13 +45,7 @@ This link expires in 24 hours. If you didn't create an account, you can safely i
 Thanks,
 The Carvo Team
 """
-    send_mail(
-        subject,
-        message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+    send_email(subject=subject, message=message, recipient=user.email)
 
 
 @shared_task
@@ -141,13 +134,7 @@ Enjoy your ride! 🚗💨
 Best regards,
 The Carvo Team
 """
-    send_mail(
-        subject,
-        message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[rental.user.email],
-        fail_silently=False
-    )
+    send_email(subject=subject, message=message, recipient=rental.user.email)
 
 
 def send_rental_completed_email(rental):
@@ -192,13 +179,7 @@ Thank you for choosing Carvo. We look forward to serving you again!
 Best regards,
 The Carvo Team
 """
-    send_mail(
-        subject,
-        message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[rental.user.email],
-        fail_silently=False
-    )
+    send_email(subject=subject, message=message, recipient=rental.user.email)
 
 
 def send_rental_cancellation_email(rental):
@@ -244,10 +225,4 @@ We hope to serve you again soon!
 Best regards,
 The Carvo Team
 """
-    send_mail(
-        subject,
-        message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[rental.user.email],
-        fail_silently=False
-    )
+    send_email(subject=subject, message=message, recipient=rental.user.email)
