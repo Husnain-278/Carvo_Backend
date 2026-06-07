@@ -49,13 +49,12 @@ INSTALLED_APPS = [
     "sendgrid_backend",
     'django_celery_results',
     "corsheaders",
-    "debug_toolbar",
     "payments",
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
@@ -71,10 +70,10 @@ INTERNAL_IPS = [
 ]
 
 
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173"
-]
+CORS_ALLOWED_ORIGINS = os.getenv(
+    "CORS_ALLOWED_ORIGINS",
+    ""
+).split(",")
 
 ROOT_URLCONF = 'Carvo.urls'
 
@@ -162,6 +161,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 
 # Cloudinary Configuration
 import cloudinary
